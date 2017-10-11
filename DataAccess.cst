@@ -13,6 +13,8 @@ Version: 1.0.0
 <%@ Property Name="Namespace" Type="System.String" Category="OutputOptions" Description="The output namespace." Default="FSharp.Model" Optional="True" %>
 <%@ Property Name="TableSuffix" Type="System.String" Category="OutputOptions" Description="The suffix added to table entities." Default="Entity" Optional="False" %>
 <%@ Property Name="ViewSuffix" Type="System.String" Category="OutputOptions" Description="The suffix added to view entities." Default="ViewEntity" Optional="False" %>
+<%@ Property Name="CommandSuffix" Type="System.String" Category="OutputOptions" Description="The suffix added to command result entities." Default="CommandEntity" Optional="False" %>
+<%@ Property Name="CommandFunctionPrefix" Type="System.String" Category="OutputOptions" Description="The prefix added to stored procedure functions." Default="exec" Optional="False" %>
 <%@ Assembly Name="SchemaExplorer" %>
 <%@ Import Namespace="System.Collections.Generic" %>
 <%@ Import Namespace="CodeSmith.Engine" %>
@@ -20,8 +22,13 @@ Version: 1.0.0
 <%@ Map Name="SystemFSharpMap" Src="System-FSharp" Description="SQL to F# Type Map" %>
 
 <script runat="template">
+
+public string MakeIdentifier(string name) {
+    return System.Text.RegularExpressions.Regex.Replace(name, "[^A-Za-z0-9_]", "_");
+}
+
 public string GetOutputTableName(SchemaExplorer.TableSchema table) {
-    var name = table.Name;
+    var name = MakeIdentifier(table.Name);
     while (name.StartsWith("_")) {
         name = name.Substring(1);
     }
@@ -36,7 +43,7 @@ public string GetRecordTypeNameForTable(SchemaExplorer.TableSchema table) {
 }
 
 public string GetOutputViewName(SchemaExplorer.ViewSchema view) {
-    var name = view.Name;
+    var name = MakeIdentifier(view.Name);
     while (name.StartsWith("_")) {
         name = name.Substring(1);
     }
@@ -51,6 +58,15 @@ public string GetOutputViewName(SchemaExplorer.ViewSchema view) {
 
 public string GetRecordTypeNameForView(SchemaExplorer.ViewSchema view) {
     return GetOutputViewName(view);
+}
+
+public string GetOutputCommandName(SchemaExplorer.CommandSchema command) {
+    var name = MakeIdentifier(command.Name) + CommandSuffix;
+    return name;
+}
+
+public string GetRecordTypeNameForCommand(SchemaExplorer.CommandSchema command) {
+    return GetOutputCommandName(command);
 }
 
 public string GetCollectionName(string entity) {
@@ -77,6 +93,10 @@ public string GetOutputColumnName(SchemaExplorer.MemberColumnSchema column) {
     return GetOutputColumnName(column.Name);
 }
 
+public string GetOutputColumnName(SchemaExplorer.CommandResultColumnSchema column) {
+    return GetOutputColumnName(column.Name);
+}
+
 public string GetRecordColumnType(string systemType, bool allowDBNull) {
     try {
         if (allowDBNull) {
@@ -93,6 +113,10 @@ public string GetRecordColumnType(SchemaExplorer.ColumnSchema column) {
 }
 
 public string GetRecordColumnType(SchemaExplorer.ViewColumnSchema column) {
+    return GetRecordColumnType(column.SystemType.FullName, column.AllowDBNull);
+}
+
+public string GetRecordColumnType(SchemaExplorer.CommandResultColumnSchema column) {
     return GetRecordColumnType(column.SystemType.FullName, column.AllowDBNull);
 }
 
@@ -267,6 +291,22 @@ module Model<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
         <% } %>
         }
         
+    <% } %>
+<% } %>
+
+<% if (SourceCommands != null && SourceCommands.Any(sc => sc.CommandResults.Count > 0)) { %>
+    // ENTITIES FOR COMMANDS
+    
+    <% foreach (var cmd in SourceCommands.Where(sc => sc.CommandResults.Count > 0)) { %>
+    <% var entityName = GetRecordTypeNameForCommand(cmd); %>
+    // Entity for command <%=cmd.Name %>
+    [<CLIMutable>]
+    type <%=entityName %> =
+        {
+        <% foreach (var c in cmd.CommandResults[0].Columns) { %>
+            <%=GetOutputColumnName(c) %> : <%=GetRecordColumnType(c) %>
+        <% } %>
+        }
     <% } %>
 <% } %>
 
