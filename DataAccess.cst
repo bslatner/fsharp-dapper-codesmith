@@ -9,6 +9,7 @@ Version: 1.0.0
 <%@ Property Name="SourceTables" Type="SchemaExplorer.TableSchemaCollection" Category="Database" Description="Select a set of tables." Optional="True" %>
 <%@ Property Name="SourceViews" Type="SchemaExplorer.ViewSchemaCollection" Category="Database" Description="Select a set of views." Optional="True" %>
 <%@ Property Name="SourceCommands" Type="SchemaExplorer.CommandSchemaCollection" Category="Database" Description="Select a set of stored procedures." Optional="True" %>
+<%@ Property Name="UseAnsiStringsByDefault" Type="System.Boolean" Category="Database" Description="Set to true if the strings in your database are mostly ANSI strings." Default="False" Optional="True" %>
 <%@ Property Name="Namespace" Type="System.String" Category="OutputOptions" Description="The output namespace." Default="FSharp.Model" Optional="True" %>
 <%@ Property Name="TableSuffix" Type="System.String" Category="OutputOptions" Description="The suffix added to table entities." Default="Entity" Optional="False" %>
 <%@ Property Name="ViewSuffix" Type="System.String" Category="OutputOptions" Description="The suffix added to view entities." Default="ViewEntity" Optional="False" %>
@@ -163,6 +164,10 @@ public string GetQueryParameterName(SchemaExplorer.MemberColumnSchema column) {
     return GetOutputColumnName(column);
 }
 
+public string GetQueryParameter(SchemaExplorer.MemberColumnSchema column) {
+    return "\"" + GetQueryParameterName(column) + "\", box " + GetParameterName(column);
+}
+
 public string GetPrimaryKeyWhereCriteria(SchemaExplorer.MemberColumnSchemaCollection columns) {
     return string.Join(" AND ", columns.Select((c) => {
         return "[" + c.Name + "] = @" + GetQueryParameterName(c);
@@ -252,6 +257,10 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
     open Dapper.Contrib.Extensions
     open Model
     
+    <% if (UseAnsiStringsByDefault) { %>
+    SqlMapper.AddTypeMap(typeof<string>, DbType.AnsiString) |> ignore
+    
+    <% } %>
     let private nullToOption a =
         match obj.ReferenceEquals(a, null) with
         | true -> None
@@ -467,7 +476,7 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
         let q = sprintf "SELECT %s FROM <%=tableName %> WHERE %s" <%=columnListName %> "<%=GetPrimaryKeyWhereCriteria(t.PrimaryKey.MemberColumns) %>"
         let p = dict [
             <% foreach (var c in t.PrimaryKey.MemberColumns) { %>
-                            "<%=GetQueryParameterName(c) %>", box <%=GetParameterName(c) %>
+                            <%=GetQueryParameter(c) %>
             <% } %>
                          ]
         conn |> querySingleOrDefaultWithParams q p
@@ -483,7 +492,7 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
         let q = sprintf "SELECT %s FROM <%=tableName %> WHERE %s" <%=columnListName %> "<%=GetPrimaryKeyWhereCriteria(t.PrimaryKey.MemberColumns) %>"
         let p = dict [
             <% foreach (var c in t.PrimaryKey.MemberColumns) { %>
-                            "<%=GetQueryParameterName(c) %>", box <%=GetParameterName(c) %>
+                            <%=GetQueryParameter(c) %>
             <% } %>
                          ]
         conn |> querySingleOrDefaultWithParamsAsync q p
