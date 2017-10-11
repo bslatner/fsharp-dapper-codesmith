@@ -1,0 +1,630 @@
+﻿<%-- 
+Name: FSharpDapper
+Author: Bryan Slatner
+Description: This template will generate an F# model for Dapper.
+Version: 1.0.0
+--%>
+<%@ CodeTemplate OutputType="Normal" Language="C#" TargetLanguage="F#" Description="This template will generate an F# model for Dapper." %>
+<%@ Property Name="SourceDatabase" Type="SchemaExplorer.DatabaseSchema" Category="Context" Description="Database that the model should be based on." DeepLoad="True" %>
+<%@ Property Name="SourceTables" Type="SchemaExplorer.TableSchemaCollection" Category="Database" Description="Select a set of tables." Optional="True" %>
+<%@ Property Name="SourceViews" Type="SchemaExplorer.ViewSchemaCollection" Category="Database" Description="Select a set of views." Optional="True" %>
+<%@ Property Name="SourceCommands" Type="SchemaExplorer.CommandSchemaCollection" Category="Database" Description="Select a set of stored procedures." Optional="True" %>
+<%@ Property Name="Namespace" Type="System.String" Category="OutputOptions" Description="The output namespace." Default="FSharp.Model" Optional="True" %>
+<%@ Property Name="TableSuffix" Type="System.String" Category="OutputOptions" Description="The suffix added to table entities." Default="Entity" Optional="False" %>
+<%@ Property Name="ViewSuffix" Type="System.String" Category="OutputOptions" Description="The suffix added to view entities." Default="ViewEntity" Optional="False" %>
+<%@ Assembly Name="SchemaExplorer" %>
+<%@ Import Namespace="System.Collections.Generic" %>
+<%@ Import Namespace="CodeSmith.Engine" %>
+<%@ Import Namespace="System.Linq" %>
+<script runat="template">
+public string GetOutputTableName(SchemaExplorer.TableSchema table) {
+    var name = table.Name;
+    while (name.StartsWith("_")) {
+        name = name.Substring(1);
+    }
+    if (name.StartsWith("tbl", StringComparison.OrdinalIgnoreCase)) {
+        name = name.Substring(3);
+    }
+    return name + TableSuffix;
+}
+
+public string GetRecordTypeNameForTable(SchemaExplorer.TableSchema table) {
+    return GetOutputTableName(table);
+}
+
+public string GetOutputViewName(SchemaExplorer.ViewSchema view) {
+    var name = view.Name;
+    while (name.StartsWith("_")) {
+        name = name.Substring(1);
+    }
+    if (name.StartsWith("vw_", StringComparison.OrdinalIgnoreCase)) {
+        name = name.Substring(3);
+    }
+    if (name.StartsWith("vw", StringComparison.OrdinalIgnoreCase)) {
+        name = name.Substring(2);
+    }
+    return name + ViewSuffix;
+}
+
+public string GetRecordTypeNameForView(SchemaExplorer.ViewSchema view) {
+    return GetOutputViewName(view);
+}
+
+public string GetCollectionName(string entity) {
+    return StringUtil.ToPlural(entity);
+}
+
+public string GetOutputColumnName(string name) {
+    var n = System.Text.RegularExpressions.Regex.Replace(name, "[^A-Za-z0-9_]", "_");
+    if (System.Text.RegularExpressions.Regex.IsMatch(name, "^[0-9]")) {
+        n = "N" + n;
+    }
+    return n;
+}
+
+public string GetOutputColumnName(SchemaExplorer.ColumnSchema column) {
+    return GetOutputColumnName(column.Name);
+}
+
+public string GetOutputColumnName(SchemaExplorer.ViewColumnSchema column) {
+    return GetOutputColumnName(column.Name);
+}
+
+public string GetOutputColumnName(SchemaExplorer.MemberColumnSchema column) {
+    return GetOutputColumnName(column.Name);
+}
+
+Dictionary<string, string> typeDictionary = new Dictionary<string, string> {
+    { "Boolean", "bool" },
+    { "Byte", "byte" },
+    { "Byte[]", "byte array" },
+    { "DateTime", "DateTime" },
+    { "Decimal", "decimal" },
+    { "Double", "double" },
+    { "Guid", "Guid" },
+    { "Int16", "int16" },
+    { "Int32", "int" },
+    { "Int64", "int64" },
+    { "String", "string" },
+    { "TimeSpan", "string" }
+};
+
+Dictionary<string, string> nullableTypes = new Dictionary<string, string> {
+    { "Boolean", "Boolean" },
+    { "Byte", "Byte" },
+    { "DateTime", "DateTime" },
+    { "Decimal", "Decimal" },
+    { "Double", "Double" },
+    { "Int16", "Int16" },
+    { "Int32", "Int32" },
+    { "Int64", "Int64" },
+    { "TimeSpan", "TimeSpan" }
+};
+
+public string GetRecordColumnType(SchemaExplorer.ColumnSchema column) {
+    var typeName = column.SystemType.Name;
+    try {
+        if (column.AllowDBNull) {
+            return typeDictionary[typeName] + " option";
+        }
+        return typeDictionary[typeName];
+    } catch (Exception ex) {
+        throw new InvalidOperationException("Unable to find record type for " + typeName, ex);
+    }
+}
+
+public string GetRecordColumnType(SchemaExplorer.ViewColumnSchema column) {
+    var typeName = column.SystemType.Name;
+    try {
+        if (column.AllowDBNull) {
+            return typeDictionary[typeName] + " option";
+        }
+        return typeDictionary[typeName];
+    } catch (Exception ex) {
+        throw new InvalidOperationException("Unable to find record type for " + typeName, ex);
+    }
+}
+
+public string GetRecordColumnType(SchemaExplorer.MemberColumnSchema column) {
+    var typeName = column.SystemType.Name;
+    try {
+        if (column.AllowDBNull) {
+            return typeDictionary[typeName] + " option";
+        }
+        return typeDictionary[typeName];
+    } catch (Exception ex) {
+        throw new InvalidOperationException("Unable to find record type for " + typeName, ex);
+    }
+}
+
+public string GetColumnList(IEnumerable<string> cols) {
+    var lst = new List<string>();
+    foreach (var c in cols) {
+        var x = GetOutputColumnName(c);
+        if (x != c) {
+            lst.Add("[" + c + "] AS " + x);
+        } else {
+            lst.Add(c);
+        }
+    }
+    return string.Join(",", lst);
+}
+
+public string GetColumnListName(string entity) {
+    return entity + "ColumnList";
+}
+
+public string GetColumnList(SchemaExplorer.TableSchema table) {
+    var lst = new List<string>();
+    if (table.HasPrimaryKey) {
+        lst.AddRange(table.PrimaryKey.MemberColumns.Select(mc => mc.Name));
+    }
+    lst.AddRange(table.NonPrimaryKeyColumns.Select(c => c.Name));
+    
+    return GetColumnList(lst);
+}
+
+public string GetColumnList(SchemaExplorer.ViewSchema view) {
+    return GetColumnList(view.Columns.Select(l => l.Name));
+}
+
+public class NameAndType {
+    public string Name { get; set; }
+    public string Type { get; set; }
+}
+
+public string GetParameterName(SchemaExplorer.MemberColumnSchema column) {
+    return StringUtil.ToCamelCase(GetOutputColumnName(column));
+}
+
+public string GetParameterDeclarations(SchemaExplorer.MemberColumnSchemaCollection columns) {
+    return string.Join(" ", columns.Select(c => {
+        return "(" + GetParameterName(c) + " : " + typeDictionary[c.SystemType.Name] + ")";
+    }));
+}
+
+public string GetQueryParameterName(SchemaExplorer.MemberColumnSchema column) {
+    return GetOutputColumnName(column);
+}
+
+public string GetPrimaryKeyWhereCriteria(SchemaExplorer.MemberColumnSchemaCollection columns) {
+    return string.Join(" AND ", columns.Select((c) => {
+        return "[" + c.Name + "] = @" + GetQueryParameterName(c);
+    }));
+}
+
+public SchemaExplorer.MemberColumnSchema GetIdentityColumn(SchemaExplorer.MemberColumnSchemaCollection columns) {
+    return columns.SingleOrDefault(c => ((bool)c.ExtendedProperties["CS_IsIdentity"].Value));
+}
+
+</script>
+<% if (!string.IsNullOrWhiteSpace(Namespace)) { %>
+namespace <%= Namespace %>
+<% } else { %>
+module DataAccess
+<% }  %>
+
+module Model<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
+
+    open System
+    open System.Data
+    open Dapper.Contrib.Extensions
+
+<% if (SourceTables != null) { %>
+
+    // ENTITIES FOR TABLES
+
+    <% foreach (var t in SourceTables) { %>
+    <% var entityName = GetRecordTypeNameForTable(t); %>
+    /// <summary>
+    /// Column list for <%=entityName %>
+    /// </summary>
+    [<Literal>]
+    let <%=GetColumnListName(entityName) %> = "<%=GetColumnList(t)%>"
+    
+    /// <summary>
+    /// Entity for table <%= t.Name %>
+    /// </summary>
+    [<CLIMutable>]
+    [<Table("<%=t.Name%>")>]
+    type <%= entityName %> =
+        {
+        <% if (t.HasPrimaryKey) { %>
+            <% foreach (var c in t.PrimaryKey.MemberColumns) { %>
+            <% if(((bool)c.ExtendedProperties["CS_IsIdentity"].Value) == true) { %>
+            [<Key>]
+            <% } else { %>
+            [<ExplicitKey>]
+            <% } %>
+            <%=GetOutputColumnName(c) %> : <%=GetRecordColumnType(c) %>
+            <% } %>
+        <% } %>
+        <% foreach (var c in t.NonPrimaryKeyColumns) { %>
+            <%=GetOutputColumnName(c) %> : <%=GetRecordColumnType(c) %>
+        <% } %>
+        }
+        
+    <% } %>
+<% } %>
+
+<% if (SourceViews != null) { %>
+    // ENTITIES FOR VIEWS
+    
+    <% foreach (var v in SourceViews) { %>
+    <% var entityName = GetRecordTypeNameForView(v); %>
+    // Column list for <%=entityName %>
+    [<Literal>]
+    let <%=GetColumnListName(entityName) %> = "<%=GetColumnList(v)%>"
+    
+    // Entity for view <%= v.Name %>
+    [<CLIMutable>]
+    [<Table("<%=v.Name%>")>]
+    type <%= entityName %> =
+        {
+        <% foreach (var c in v.Columns) { %>
+            <%=GetOutputColumnName(c) %> : <%=GetRecordColumnType(c) %>
+        <% } %>
+        }
+        
+    <% } %>
+<% } %>
+
+module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
+
+    open System.Data
+    open Dapper
+    open Dapper.Contrib.Extensions
+    open Model
+    
+    let private nullToOption a =
+        match obj.ReferenceEquals(a, null) with
+        | true -> None
+        | false -> Some a
+
+    /// <summary>
+    /// Execute a query that returns a single value.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="conn">The database connection.</param>
+    let executeScalar<'a> (query : string) (conn : IDbConnection) : 'a =
+        conn.ExecuteScalar(query) :?> 'a
+
+    /// <summary>
+    /// Execute a query that returns a single value.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="conn">The database connection.</param>
+    let executeScalarAsync<'a> (query : string) (conn : IDbConnection) : Async<'a> =
+        async {
+            let! r = conn.ExecuteScalarAsync(query) |> Async.AwaitTask
+            return r :?> 'a
+        }
+
+    /// <summary>
+    /// Execute a parameterized query that returns a single value.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="param">The parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let executeScalarWithParams<'a> (query : string) (param : obj) (conn : IDbConnection) : 'a =
+        conn.ExecuteScalar(query, param) :?> 'a
+
+    /// <summary>
+    /// Execute a parameterized query that returns a single value.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="param">The parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let executeScalarWithParamsAsync<'a> (query : string) (param : obj) (conn : IDbConnection) : Async<'a> =
+        async {
+            let! r = conn.ExecuteScalarAsync(query, param) |> Async.AwaitTask
+            return r :?> 'a
+        }
+        
+    /// <summary>
+    /// Execute a query.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="conn">The database connection.</param>
+    let query<'a> (query : string) (conn : IDbConnection) : seq<'a> =
+        conn.Query<'a>(query)
+
+    /// <summary>
+    /// Execute a query.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="conn">The database connection.</param>
+    let queryAsync<'a> (query : string) (conn : IDbConnection) : Async<seq<'a>> =
+        conn.QueryAsync<'a>(query) |> Async.AwaitTask
+
+    /// <summary>
+    /// Execute a parameterized query.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="param">The parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let queryWithParams<'a> (query : string) (param : obj) (conn : IDbConnection) : seq<'a> =
+        conn.Query<'a>(query, param)
+
+    /// <summary>
+    /// Execute a parameterized query.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="param">The parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let queryWithParamsAsync<'a> (query : string) (param : obj) (conn : IDbConnection) : Async<seq<'a>> =
+        conn.QueryAsync<'a>(query, param) |> Async.AwaitTask
+
+    /// <summary>
+    /// Execute a query that returns a single row.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="conn">The database connection.</param>
+    let querySingle<'a> (query : string) (conn : IDbConnection) : 'a =
+        conn.QuerySingle<'a>(query)
+
+    /// <summary>
+    /// Execute a query that returns a single row.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="conn">The database connection.</param>
+    let querySingleAsync<'a> (query : string) (conn : IDbConnection) : Async<'a> =
+        conn.QuerySingleAsync<'a>(query) |> Async.AwaitTask
+
+    /// <summary>
+    /// Execute a query that returns a single row.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="param">The parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let querySingleWithParams<'a> (query : string) (param : obj) (conn : IDbConnection) : 'a =
+        conn.QuerySingle<'a>(query, param)
+
+    /// <summary>
+    /// Execute a query that returns a single row.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="param">The parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let querySingleWithParamsAsync<'a> (query : string) (param : obj) (conn : IDbConnection) : Async<'a> =
+        conn.QuerySingleAsync<'a>(query, param) |> Async.AwaitTask
+
+    /// <summary>
+    /// Execute a query that returns a single row or <c>None</c>.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="conn">The database connection.</param>
+    let querySingleOrDefaultAsync<'a> (query : string) (conn : IDbConnection) : Async<'a option> =
+        async {
+            let! r = conn.QuerySingleOrDefaultAsync<'a>(query) |> Async.AwaitTask
+            return nullToOption r
+        }
+
+    /// <summary>
+    /// Execute a query that returns a single row or <c>None</c>.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="param">The parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let querySingleOrDefaultWithParams<'a> (query : string) (param : obj) (conn : IDbConnection) : 'a option =
+        conn.QuerySingleOrDefault<'a>(query, param)
+        |> nullToOption
+
+    /// <summary>
+    /// Execute a query that returns a single row or <c>None</c>.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="param">The parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let querySingleOrDefaultWithParamsAsync<'a> (query : string) (param : obj) (conn : IDbConnection) : Async<'a option> =
+        async {
+            let! r = conn.QuerySingleOrDefaultAsync<'a>(query, param) |> Async.AwaitTask
+            return nullToOption r
+        }
+
+    /// <summary>
+    /// Insert a row into a table.
+    /// </summary>
+    /// <param name="row">The row to insert.</param>
+    /// <param name="conn">The database connection.</param>
+    let insert<'a when 'a : not struct> (row : 'a) (conn : IDbConnection) =
+        conn.Insert<'a>(row) 
+
+    /// <summary>
+    /// Insert a row into a table.
+    /// </summary>
+    /// <param name="row">The row to insert.</param>
+    /// <param name="conn">The database connection.</param>
+    let insertAsync<'a when 'a : not struct> (row : 'a) (conn : IDbConnection) =
+        conn.InsertAsync<'a>(row) |> Async.AwaitTask
+
+    /// <summary>
+    /// Update a row in a table.
+    /// </summary>
+    /// <param name="row">The row to update.</param>
+    /// <param name="conn">The database connection.</param>
+    let update<'a when 'a : not struct> (row : 'a) (conn : IDbConnection) =
+        conn.Update(row)
+
+    /// <summary>
+    /// Update a row in a table.
+    /// </summary>
+    /// <param name="row">The row to update.</param>
+    /// <param name="conn">The database connection.</param>
+    let updateAsync<'a when 'a : not struct> (row : 'a) (conn : IDbConnection) =
+        conn.UpdateAsync(row) |> Async.AwaitTask
+    
+    /// <summary>
+    /// Delete a row in a table.
+    /// </summary>
+    /// <param name="row">The row to delete.</param>
+    /// <param name="conn">The database connection.</param>
+    let delete<'a when 'a : not struct> (row : 'a) (conn : IDbConnection) =
+        conn.Update(row)
+
+    /// <summary>
+    /// Delete a row in a table.
+    /// </summary>
+    /// <param name="row">The row to delete.</param>
+    /// <param name="conn">The database connection.</param>
+    let deleteAsync<'a when 'a : not struct> (row : 'a) (conn : IDbConnection) =
+        conn.UpdateAsync(row) |> Async.AwaitTask
+        
+    <% foreach (var t in SourceTables) { %>
+    <% 
+        var entityName = GetRecordTypeNameForTable(t); 
+        var collectionName = GetCollectionName(entityName);
+        var columnListName = GetColumnListName(entityName);
+        var tableName = "[" + t.Name + "]";
+        var sequenceType = "seq<" + entityName + ">";
+    %>
+    
+    <% if (t.HasPrimaryKey) { %>
+    /// <summary>
+    /// Get <see cref="<%=entityName %>" /> by primary key.
+    /// </summary>
+    <% foreach (var c in t.PrimaryKey.MemberColumns) { %>
+    /// <param name="<%=GetParameterName(c) %>">Value of the <%=GetOutputColumnName(c) %> column.</param>
+    <% } %>
+    /// <param name="conn">The database connection.</param>
+    let get<%=entityName %> <%=GetParameterDeclarations(t.PrimaryKey.MemberColumns) %> (conn : IDbConnection) : <%=entityName%> option =
+        let q = sprintf "SELECT %s FROM <%=tableName %> WHERE %s" <%=columnListName %> "<%=GetPrimaryKeyWhereCriteria(t.PrimaryKey.MemberColumns) %>"
+        let p = dict [
+            <% foreach (var c in t.PrimaryKey.MemberColumns) { %>
+                            "<%=GetQueryParameterName(c) %>", box <%=GetParameterName(c) %>
+            <% } %>
+                         ]
+        conn |> querySingleOrDefaultWithParams q p
+        
+    /// <summary>
+    /// Get <see cref="<%=entityName %>" /> by primary key.
+    /// </summary>
+    <% foreach (var c in t.PrimaryKey.MemberColumns) { %>
+    /// <param name="<%=GetParameterName(c) %>">Value of the <%=GetOutputColumnName(c) %> column.</param>
+    <% } %>
+    /// <param name="conn">The database connection.</param>
+    let get<%=entityName %>Async <%=GetParameterDeclarations(t.PrimaryKey.MemberColumns) %> (conn : IDbConnection) : Async<<%=entityName%> option> =
+        let q = sprintf "SELECT %s FROM <%=tableName %> WHERE %s" <%=columnListName %> "<%=GetPrimaryKeyWhereCriteria(t.PrimaryKey.MemberColumns) %>"
+        let p = dict [
+            <% foreach (var c in t.PrimaryKey.MemberColumns) { %>
+                            "<%=GetQueryParameterName(c) %>", box <%=GetParameterName(c) %>
+            <% } %>
+                         ]
+        conn |> querySingleOrDefaultWithParamsAsync q p
+        
+        <%
+        var idColumn = GetIdentityColumn(t.PrimaryKey.MemberColumns);
+        if (idColumn != null) {
+        %>
+    /// <summary>
+    /// Insert a new <see cref="<%=entityName %>" />. Return a copy of the record with its new identity value.
+    /// </summary>
+    /// <param name="row">The row to insert.</param>
+    /// <param name="conn">The database connection.</param>
+    let insert<%=entityName %> (row : <%=entityName %>) (conn : IDbConnection) : <%=entityName%> =
+        let id = conn |> insert row
+        { row with <%=GetOutputColumnName(idColumn) %> = <%=typeDictionary[idColumn.SystemType.Name] %> id }
+        
+    /// <summary>
+    /// Insert a new <see cref="<%=entityName %>" />. Return a copy of the record with its new identity value.
+    /// </summary>
+    /// <param name="row">The row to insert.</param>
+    /// <param name="conn">The database connection.</param>
+    let insert<%=entityName %>Async (row : <%=entityName %>) (conn : IDbConnection) : Async<<%=entityName%>> =
+        async {
+            let! id = conn |> insertAsync row
+            return { row with <%=GetOutputColumnName(idColumn) %> = <%=typeDictionary[idColumn.SystemType.Name] %> id }
+        }
+        
+        <% } else { %>
+    /// <summary>
+    /// Insert a new <see cref="<%=entityName %>" />.
+    /// </summary>
+    /// <param name="row">The row to insert.</param>
+    /// <param name="conn">The database connection.</param>
+    let insert<%=entityName %> (row : <%=entityName %>) (conn : IDbConnection) : unit =
+        conn |> insert row |> ignore
+        
+    /// <summary>
+    /// Insert a new <see cref="<%=entityName %>" />.
+    /// </summary>
+    /// <param name="row">The row to insert.</param>
+    /// <param name="conn">The database connection.</param>
+    let insert<%=entityName %>Async (row : <%=entityName %>) (conn : IDbConnection) : Async<unit> =
+        conn |> insertAsync row |> Async.Ignore
+        
+        <% } %>
+
+    /// <summary>
+    /// Update a <see cref="<%=entityName %>" />.
+    /// </summary>
+    /// <param name="row">The row to update.</param>
+    /// <param name="conn">The database connection.</param>
+    let update<%=entityName %> (row : <%=entityName %>) (conn : IDbConnection) =
+        conn |> update row
+
+    /// <summary>
+    /// Update a <see cref="<%=entityName %>" />.
+    /// </summary>
+    /// <param name="row">The row to update.</param>
+    /// <param name="conn">The database connection.</param>
+    let update<%=entityName %>Async (row : <%=entityName %>) (conn : IDbConnection) =
+        conn |> updateAsync row
+
+    /// <summary>
+    /// Delete a <see cref="<%=entityName %>" />.
+    /// </summary>
+    /// <param name="row">The row to delete.</param>
+    /// <param name="conn">The database connection.</param>
+    let delete<%=entityName %> (row : <%=entityName %>) (conn : IDbConnection) =
+        conn |> update row
+
+    /// <summary>
+    /// Delete a <see cref="<%=entityName %>" />.
+    /// </summary>
+    /// <param name="row">The row to delete.</param>
+    /// <param name="conn">The database connection.</param>
+    let delete<%=entityName %>Async (row : <%=entityName %>) (conn : IDbConnection) =
+        conn |> updateAsync row
+        
+    <% } %>
+        
+    /// <summary>
+    /// Query all <see cref="<%=entityName %>". />
+    /// </summary>
+    /// <param name="conn">The database connection.</param>
+    let getAll<%=collectionName %> (conn : IDbConnection) : <%=sequenceType %> =
+        let q = sprintf "SELECT %s FROM <%=tableName %>" <%=columnListName %>
+        conn |> query q
+        
+    /// <summary>
+    /// Query <see cref="<%=entityName %>". />
+    /// </summary>
+    /// <param name="criteria">The criteria.</param>
+    /// <param name="param">The query parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let query<%=collectionName %> (criteria : string) (param : obj) (conn : IDbConnection) : <%=sequenceType %> =
+        let q = sprintf "SELECT %s FROM <%=tableName %> WHERE %s" <%=columnListName %> criteria
+        conn |> queryWithParams q param
+        
+    /// <summary>
+    /// Query a single <see cref="<%=entityName %>" />.
+    /// </summary>
+    /// <param name="criteria">The criteria.</param>
+    /// <param name="param">The query parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let querySingle<%=entityName %> (criteria : string) (param : obj) (conn : IDbConnection) : <%=entityName %> =
+        let q = sprintf "SELECT %s FROM <%=tableName %> WHERE %s" <%=columnListName %> criteria
+        conn |> querySingleWithParams q param
+    
+    /// <summary>
+    /// Query a single <see cref="<%=entityName %>" />.
+    /// </summary>
+    /// <param name="criteria">The criteria.</param>
+    /// <param name="param">The query parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let querySingleOrDefault<%=entityName %> (criteria : string) (param : obj) (conn : IDbConnection) : <%=entityName %> option =
+        let q = sprintf "SELECT %s FROM <%=tableName %> WHERE %s" <%=columnListName %> criteria
+        conn |> querySingleOrDefaultWithParams q param
+
+    <% } %>
