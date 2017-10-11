@@ -20,6 +20,7 @@ Version: 1.0.0
 <%@ Import Namespace="CodeSmith.Engine" %>
 <%@ Import Namespace="System.Linq" %>
 <%@ Map Name="SystemFSharpMap" Src="System-FSharp" Description="SQL to F# Type Map" %>
+<%@ Map Name="SqlDbTypeMap" Src="Sql-DbType" Description="SQL Type to DbType" %>
 
 <script runat="template">
 
@@ -74,7 +75,7 @@ public string GetCollectionName(string entity) {
 }
 
 public string GetOutputColumnName(string name) {
-    var n = System.Text.RegularExpressions.Regex.Replace(name, "[^A-Za-z0-9_]", "_");
+    var n = MakeIdentifier(name);
     if (System.Text.RegularExpressions.Regex.IsMatch(name, "^[0-9]")) {
         n = "N" + n;
     }
@@ -95,6 +96,10 @@ public string GetOutputColumnName(SchemaExplorer.MemberColumnSchema column) {
 
 public string GetOutputColumnName(SchemaExplorer.CommandResultColumnSchema column) {
     return GetOutputColumnName(column.Name);
+}
+
+public string GetOutputColumnName(SchemaExplorer.ParameterSchema p) {
+    return GetOutputColumnName(p.Name);
 }
 
 public string GetRecordColumnType(string systemType, bool allowDBNull) {
@@ -172,8 +177,18 @@ public string GetParameterName(SchemaExplorer.ColumnSchema column) {
     return StringUtil.ToCamelCase(GetOutputColumnName(column));
 }
 
+public string GetParameterName(SchemaExplorer.ParameterSchema column) {
+    return StringUtil.ToCamelCase(GetOutputColumnName(column));
+}
+
 public string GetParameterDeclarations(SchemaExplorer.MemberColumnSchemaCollection columns) {
     return string.Join(" ", columns.Select(c => {
+        return "(" + GetParameterName(c) + " : " + SystemFSharpMap[c.SystemType.FullName] + ")";
+    }));
+}
+
+public string GetParameterDeclarations(SchemaExplorer.ParameterSchemaCollection ps) {
+    return string.Join(" ", ps.Select(c => {
         return "(" + GetParameterName(c) + " : " + SystemFSharpMap[c.SystemType.FullName] + ")";
     }));
 }
@@ -321,6 +336,9 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
     SqlMapper.AddTypeMap(typeof<string>, DbType.AnsiString) |> ignore
 
     <% } %>
+    let private spCommandType = System.Nullable<CommandType>(CommandType.StoredProcedure)
+    let private dbType v = System.Nullable<DbType>(v)
+
     let private dbString value isFixedLength length isAnsi =
         let dbs = DbString()
         dbs.Value <- value
@@ -421,6 +439,40 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
     /// <param name="conn">The database connection.</param>
     let queryWithParamsAsync<'a> (query : string) (param : obj) (conn : IDbConnection) : Async<seq<'a>> =
         conn.QueryAsync<'a>(query, param) |> Async.AwaitTask
+
+    /// <summary>
+    /// Execute a stored procedure and return its results.
+    /// </summary>
+    /// <param name="name">The name of the stored procedure.</param>
+    /// <param name="conn">The database connection.</param>
+    let queryCmd<'a> (name : string) (conn : IDbConnection) : seq<'a> =
+        conn.Query<'a>(name, commandType = spCommandType)
+
+    /// <summary>
+    /// Execute a stored procedure and return its results.
+    /// </summary>
+    /// <param name="name">The name of the stored procedure.</param>
+    /// <param name="conn">The database connection.</param>
+    let queryCmdAsync<'a> (name : string) (conn : IDbConnection) : Async<seq<'a>> =
+        conn.QueryAsync<'a>(name, commandType = spCommandType) |> Async.AwaitTask
+
+    /// <summary>
+    /// Execute a stored procedure and return its results.
+    /// </summary>
+    /// <param name="name">The name of the stored procedure.</param>
+    /// <param name="param">The parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let queryCmdWithParams<'a> (name : string) (param : obj) (conn : IDbConnection) : seq<'a> =
+        conn.Query<'a>(name, param, commandType = spCommandType)
+
+    /// <summary>
+    /// Execute a stored procedure and return its results.
+    /// </summary>
+    /// <param name="name">The name of the stored procedure.</param>
+    /// <param name="param">The parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let queryCmdWithParamsAsync<'a> (name : string) (param : obj) (conn : IDbConnection) : Async<seq<'a>> =
+        conn.QueryAsync<'a>(name, param, commandType = spCommandType) |> Async.AwaitTask
 
     /// <summary>
     /// Execute a query that returns a single row.
@@ -536,6 +588,40 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
     /// <param name="conn">The database connection.</param>
     let deleteAsync<'a when 'a : not struct> (row : 'a) (conn : IDbConnection) =
         conn.UpdateAsync(row) |> Async.AwaitTask
+        
+    /// <summary>
+    /// Execute a stored procedure.
+    /// </summary>
+    /// <param name="name">The name of the stored procedure.</param>
+    /// <param name="conn">The database connection.</param>
+    let execCmd (name : string) (conn : IDbConnection) : unit =
+        conn.Execute(name, commandType = spCommandType) |> ignore
+        
+    /// <summary>
+    /// Execute a stored procedure.
+    /// </summary>
+    /// <param name="name">The name of the stored procedure.</param>
+    /// <param name="conn">The database connection.</param>
+    let execCmdAsync (name : string) (conn : IDbConnection) : Async<unit> =
+        conn.ExecuteAsync(name, commandType = spCommandType) |> Async.AwaitTask |> Async.Ignore
+        
+    /// <summary>
+    /// Execute a stored procedure.
+    /// </summary>
+    /// <param name="name">The name of the stored procedure.</param>
+    /// <param name="param">The parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let execCmdWithParams (name : string) (param : obj) (conn : IDbConnection) : unit =
+        conn.Execute(name, param, commandType = spCommandType) |> ignore
+        
+    /// <summary>
+    /// Execute a stored procedure.
+    /// </summary>
+    /// <param name="name">The name of the stored procedure.</param>
+    /// <param name="param">The parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let execCmdWithParamsAsync (name : string) (param : obj) (conn : IDbConnection) : Async<unit> =
+        conn.ExecuteAsync(name, param, commandType = spCommandType) |> Async.AwaitTask |> Async.Ignore
         
     <% foreach (var t in SourceTables) { %>
     <% 
@@ -702,7 +788,66 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
 
     <% } %>
     
-<%--    <% foreach (var cmd in SourceCommands) { %>
-    let <%=CommandFunctionPrefix %><%=MakeIdentifier(cmd.Name) %>() = 0
+    <% foreach (var cmd in SourceCommands) { %>
+        <% if (cmd.CommandResults.Count > 0) { %>
+            <% var entityName = GetRecordTypeNameForCommand(cmd); %>
+            <% var sequenceType = "seq<" + entityName + ">"; %>
+    /// <summary>
+    /// Execute the <%=cmd.Name %> stored procedure.
+    /// </summary>
+    let <%=CommandFunctionPrefix %><%=MakeIdentifier(cmd.Name) %> <%=GetParameterDeclarations(cmd.AllInputParameters) %> (conn : IDbConnection) : <%= sequenceType %> =
+            <% if (cmd.AllInputParameters.Count > 0) { %>
+        let p = new DynamicParameters()
+                <% foreach (var p in cmd.AllInputParameters) { %>
+        p.Add("<%=p.Name %>", <%=GetParameterName(p) %>, (dbType <%=SqlDbTypeMap[p.NativeType] %>))
+                <% } %>
+        conn |> queryCmdWithParams<<%=entityName%>> "<%=cmd.Name%>" p
+            <% } else { %>
+        conn |> queryCmd<<%=entityName%>> "<%=cmd.Name%>"
+            <% } %>
+            
+    /// <summary>
+    /// Execute the <%=cmd.Name %> stored procedure.
+    /// </summary>
+    let <%=CommandFunctionPrefix %><%=MakeIdentifier(cmd.Name) %>Async <%=GetParameterDeclarations(cmd.AllInputParameters) %> (conn : IDbConnection) : Async<<%= sequenceType %>> =
+            <% if (cmd.AllInputParameters.Count > 0) { %>
+        let p = new DynamicParameters()
+                <% foreach (var p in cmd.AllInputParameters) { %>
+        p.Add("<%=p.Name %>", <%=GetParameterName(p) %>, (dbType <%=SqlDbTypeMap[p.NativeType] %>))
+                <% } %>
+        conn |> queryCmdWithParamsAsync<<%=entityName%>> "<%=cmd.Name%>" p
+            <% } else { %>
+        conn |> queryCmdAsync<<%=entityName%>> "<%=cmd.Name%>"
+            <% } %>
+            
+        <% } else { %>
+    /// <summary>
+    /// Execute the <%=cmd.Name %> stored procedure.
+    /// </summary>
+    let <%=CommandFunctionPrefix %><%=MakeIdentifier(cmd.Name) %> <%=GetParameterDeclarations(cmd.AllInputParameters) %> (conn : IDbConnection) : unit =
+            <% if (cmd.AllInputParameters.Count > 0) { %>
+        let p = new DynamicParameters()
+                <% foreach (var p in cmd.AllInputParameters) { %>
+        p.Add("<%=p.Name %>", <%=GetParameterName(p) %>, (dbType <%=SqlDbTypeMap[p.NativeType] %>))
+                <% } %>
+        conn |> execCmdWithParams "<%=cmd.Name%>" p
+            <% } else { %>
+        conn |> execCmd "<%=cmd.Name%>"
+            <% } %>
+            
+    /// <summary>
+    /// Execute the <%=cmd.Name %> stored procedure.
+    /// </summary>
+    let <%=CommandFunctionPrefix %><%=MakeIdentifier(cmd.Name) %>Async <%=GetParameterDeclarations(cmd.AllInputParameters) %> (conn : IDbConnection) : Async<unit> =
+            <% if (cmd.AllInputParameters.Count > 0) { %>
+        let p = new DynamicParameters()
+                <% foreach (var p in cmd.AllInputParameters) { %>
+        p.Add("<%=p.Name %>", <%=GetParameterName(p) %>, (dbType <%=SqlDbTypeMap[p.NativeType] %>))
+                <% } %>
+        conn |> execCmdWithParamsAsync "<%=cmd.Name%>" p
+            <% } else { %>
+        conn |> execCmdAsync "<%=cmd.Name%>"
+            <% } %>
+        <% } %>
+
     <% } %>
---%>
