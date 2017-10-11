@@ -623,6 +623,7 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
     let execCmdWithParamsAsync (name : string) (param : obj) (conn : IDbConnection) : Async<unit> =
         conn.ExecuteAsync(name, param, commandType = spCommandType) |> Async.AwaitTask |> Async.Ignore
         
+<% if (SourceTables != null) { %>
     <% foreach (var t in SourceTables) { %>
     <% 
         var entityName = GetRecordTypeNameForTable(t); 
@@ -787,7 +788,66 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
         conn |> querySingleOrDefaultWithParams q param
 
     <% } %>
+<% } %>
+
+<% if (SourceViews != null) { %>
+    <% foreach (var v in SourceViews) { %>
+    <% 
+        var entityName = GetRecordTypeNameForView(v); 
+        var collectionName = GetCollectionName(entityName);
+        var columnListName = GetColumnListName(entityName);
+        var viewName = "[" + v.Name + "]";
+        var sequenceType = "seq<" + entityName + ">";
+    %>
     
+    /// <summary>
+    /// Query all <see cref="<%=entityName %>". />
+    /// </summary>
+    /// <param name="conn">The database connection.</param>
+    let getAll<%=collectionName %> (conn : IDbConnection) : <%=sequenceType %> =
+        getAll<<%=entityName %>> conn
+
+    /// <summary>
+    /// Query all <see cref="<%=entityName %>". />
+    /// </summary>
+    /// <param name="conn">The database connection.</param>
+    let getAll<%=collectionName %>Async (conn : IDbConnection) : Async<<%=sequenceType %>> =
+        getAllAsync<<%=entityName %>> conn
+
+    /// <summary>
+    /// Query <see cref="<%=entityName %>". />
+    /// </summary>
+    /// <param name="criteria">The criteria.</param>
+    /// <param name="param">The query parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let query<%=collectionName %> (criteria : string) (param : obj) (conn : IDbConnection) : <%=sequenceType %> =
+        let q = sprintf "SELECT %s FROM <%=viewName %> WHERE %s" <%=columnListName %> criteria
+        conn |> queryWithParams q param
+        
+    /// <summary>
+    /// Query a single <see cref="<%=entityName %>" />.
+    /// </summary>
+    /// <param name="criteria">The criteria.</param>
+    /// <param name="param">The query parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let querySingle<%=entityName %> (criteria : string) (param : obj) (conn : IDbConnection) : <%=entityName %> =
+        let q = sprintf "SELECT %s FROM <%=viewName %> WHERE %s" <%=columnListName %> criteria
+        conn |> querySingleWithParams q param
+    
+    /// <summary>
+    /// Query a single <see cref="<%=entityName %>" />.
+    /// </summary>
+    /// <param name="criteria">The criteria.</param>
+    /// <param name="param">The query parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let querySingleOrDefault<%=entityName %> (criteria : string) (param : obj) (conn : IDbConnection) : <%=entityName %> option =
+        let q = sprintf "SELECT %s FROM <%=viewName %> WHERE %s" <%=columnListName %> criteria
+        conn |> querySingleOrDefaultWithParams q param
+        
+    <% } %>
+<% } %>
+
+<% if (SourceCommands != null) { %>
     <% foreach (var cmd in SourceCommands) { %>
         <% if (cmd.CommandResults.Count > 0) { %>
             <% var entityName = GetRecordTypeNameForCommand(cmd); %>
@@ -851,3 +911,4 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
         <% } %>
 
     <% } %>
+<% } %>
