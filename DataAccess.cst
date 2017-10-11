@@ -335,6 +335,20 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
         | false -> Some a
 
     /// <summary>
+    /// Get all records of a particular type.
+    /// </summary>
+    /// <param name="conn">The database connection.</param>
+    let getAll<'a when 'a : not struct> (conn : IDbConnection) : seq<'a> =
+        conn.GetAll<'a>()
+
+    /// <summary>
+    /// Get all records of a particular type.
+    /// </summary>
+    /// <param name="conn">The database connection.</param>
+    let getAllAsync<'a when 'a : not struct> (conn : IDbConnection) : Async<seq<'a>> =
+        conn.GetAllAsync<'a>() |> Async.AwaitTask
+        
+    /// <summary>
     /// Execute a query that returns a single value.
     /// </summary>
     /// <param name="query">The query.</param>
@@ -647,9 +661,15 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
     /// </summary>
     /// <param name="conn">The database connection.</param>
     let getAll<%=collectionName %> (conn : IDbConnection) : <%=sequenceType %> =
-        let q = sprintf "SELECT %s FROM <%=tableName %>" <%=columnListName %>
-        conn |> query q
-        
+        getAll<<%=entityName %>> conn
+
+    /// <summary>
+    /// Query all <see cref="<%=entityName %>". />
+    /// </summary>
+    /// <param name="conn">The database connection.</param>
+    let getAll<%=collectionName %>Async (conn : IDbConnection) : Async<<%=sequenceType %>> =
+        getAllAsync<<%=entityName %>> conn
+
     /// <summary>
     /// Query <see cref="<%=entityName %>". />
     /// </summary>
@@ -681,3 +701,8 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
         conn |> querySingleOrDefaultWithParams q param
 
     <% } %>
+    
+<%--    <% foreach (var cmd in SourceCommands) { %>
+    let <%=CommandFunctionPrefix %><%=MakeIdentifier(cmd.Name) %>() = 0
+    <% } %>
+--%>
