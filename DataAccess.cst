@@ -4,7 +4,7 @@ Author: Bryan Slatner
 Description: This template will generate an F# model for Dapper.
 Version: 1.0.0
 --%>
-<%@ CodeTemplate OutputType="Normal" Language="C#" TargetLanguage="F#" Description="This template will generate an F# model for Dapper." %>
+<%@ CodeTemplate OutputType="Normal" Language="C#" TargetLanguage="F#" Description="This template will generate an F# model for Dapper." Debug="True" %>
 <%@ Property Name="SourceDatabase" Type="SchemaExplorer.DatabaseSchema" Category="Context" Description="Database that the model should be based on." DeepLoad="True" %>
 <%@ Property Name="SourceTables" Type="SchemaExplorer.TableSchemaCollection" Category="Database" Description="Select a set of tables." Optional="True" %>
 <%@ Property Name="SourceViews" Type="SchemaExplorer.ViewSchemaCollection" Category="Database" Description="Select a set of views." Optional="True" %>
@@ -16,6 +16,8 @@ Version: 1.0.0
 <%@ Import Namespace="System.Collections.Generic" %>
 <%@ Import Namespace="CodeSmith.Engine" %>
 <%@ Import Namespace="System.Linq" %>
+<%@ Map Name="SystemFSharpMap" Src="System-FSharp" Description="SQL to F# Type Map" %>
+
 <script runat="template">
 public string GetOutputTableName(SchemaExplorer.TableSchema table) {
     var name = table.Name;
@@ -74,64 +76,38 @@ public string GetOutputColumnName(SchemaExplorer.MemberColumnSchema column) {
     return GetOutputColumnName(column.Name);
 }
 
-Dictionary<string, string> typeDictionary = new Dictionary<string, string> {
-    { "Boolean", "bool" },
-    { "Byte", "byte" },
-    { "Byte[]", "byte array" },
-    { "DateTime", "DateTime" },
-    { "Decimal", "decimal" },
-    { "Double", "double" },
-    { "Guid", "Guid" },
-    { "Int16", "int16" },
-    { "Int32", "int" },
-    { "Int64", "int64" },
-    { "String", "string" },
-    { "TimeSpan", "string" }
-};
-
-Dictionary<string, string> nullableTypes = new Dictionary<string, string> {
-    { "Boolean", "Boolean" },
-    { "Byte", "Byte" },
-    { "DateTime", "DateTime" },
-    { "Decimal", "Decimal" },
-    { "Double", "Double" },
-    { "Int16", "Int16" },
-    { "Int32", "Int32" },
-    { "Int64", "Int64" },
-    { "TimeSpan", "TimeSpan" }
-};
-
 public string GetRecordColumnType(SchemaExplorer.ColumnSchema column) {
-    var typeName = column.SystemType.Name;
+
+    var typeName = column.SystemType.FullName;
     try {
         if (column.AllowDBNull) {
-            return typeDictionary[typeName] + " option";
+            return SystemFSharpMap[typeName] + " option";
         }
-        return typeDictionary[typeName];
+        return SystemFSharpMap[typeName];
     } catch (Exception ex) {
         throw new InvalidOperationException("Unable to find record type for " + typeName, ex);
     }
 }
 
 public string GetRecordColumnType(SchemaExplorer.ViewColumnSchema column) {
-    var typeName = column.SystemType.Name;
+    var typeName = column.SystemType.FullName;
     try {
         if (column.AllowDBNull) {
-            return typeDictionary[typeName] + " option";
+            return SystemFSharpMap[typeName] + " option";
         }
-        return typeDictionary[typeName];
+        return SystemFSharpMap[typeName];
     } catch (Exception ex) {
         throw new InvalidOperationException("Unable to find record type for " + typeName, ex);
     }
 }
 
 public string GetRecordColumnType(SchemaExplorer.MemberColumnSchema column) {
-    var typeName = column.SystemType.Name;
+    var typeName = column.SystemType.FullName;
     try {
         if (column.AllowDBNull) {
-            return typeDictionary[typeName] + " option";
+            return SystemFSharpMap[typeName] + " option";
         }
-        return typeDictionary[typeName];
+        return SystemFSharpMap[typeName];
     } catch (Exception ex) {
         throw new InvalidOperationException("Unable to find record type for " + typeName, ex);
     }
@@ -179,7 +155,7 @@ public string GetParameterName(SchemaExplorer.MemberColumnSchema column) {
 
 public string GetParameterDeclarations(SchemaExplorer.MemberColumnSchemaCollection columns) {
     return string.Join(" ", columns.Select(c => {
-        return "(" + GetParameterName(c) + " : " + typeDictionary[c.SystemType.Name] + ")";
+        return "(" + GetParameterName(c) + " : " + SystemFSharpMap[c.SystemType.FullName] + ")";
     }));
 }
 
@@ -523,7 +499,7 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
     /// <param name="conn">The database connection.</param>
     let insert<%=entityName %> (row : <%=entityName %>) (conn : IDbConnection) : <%=entityName%> =
         let id = conn |> insert row
-        { row with <%=GetOutputColumnName(idColumn) %> = <%=typeDictionary[idColumn.SystemType.Name] %> id }
+        { row with <%=GetOutputColumnName(idColumn) %> = <%=SystemFSharpMap[idColumn.SystemType.FullName] %> id }
         
     /// <summary>
     /// Insert a new <see cref="<%=entityName %>" />. Return a copy of the record with its new identity value.
@@ -533,7 +509,7 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
     let insert<%=entityName %>Async (row : <%=entityName %>) (conn : IDbConnection) : Async<<%=entityName%>> =
         async {
             let! id = conn |> insertAsync row
-            return { row with <%=GetOutputColumnName(idColumn) %> = <%=typeDictionary[idColumn.SystemType.Name] %> id }
+            return { row with <%=GetOutputColumnName(idColumn) %> = <%=SystemFSharpMap[idColumn.SystemType.FullName] %> id }
         }
         
         <% } else { %>
