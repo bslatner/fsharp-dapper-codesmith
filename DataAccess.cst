@@ -77,41 +77,23 @@ public string GetOutputColumnName(SchemaExplorer.MemberColumnSchema column) {
     return GetOutputColumnName(column.Name);
 }
 
-public string GetRecordColumnType(SchemaExplorer.ColumnSchema column) {
-
-    var typeName = column.SystemType.FullName;
+public string GetRecordColumnType(string systemType, bool allowDBNull) {
     try {
-        if (column.AllowDBNull) {
-            return SystemFSharpMap[typeName] + " option";
+        if (allowDBNull) {
+            return SystemFSharpMap[systemType] + " option";
         }
-        return SystemFSharpMap[typeName];
+        return SystemFSharpMap[systemType];
     } catch (Exception ex) {
-        throw new InvalidOperationException("Unable to find record type for " + typeName, ex);
+        throw new InvalidOperationException("Unable to find record type for " + systemType, ex);
     }
+}
+
+public string GetRecordColumnType(SchemaExplorer.ColumnSchema column) {
+    return GetRecordColumnType(column.SystemType.FullName, column.AllowDBNull);
 }
 
 public string GetRecordColumnType(SchemaExplorer.ViewColumnSchema column) {
-    var typeName = column.SystemType.FullName;
-    try {
-        if (column.AllowDBNull) {
-            return SystemFSharpMap[typeName] + " option";
-        }
-        return SystemFSharpMap[typeName];
-    } catch (Exception ex) {
-        throw new InvalidOperationException("Unable to find record type for " + typeName, ex);
-    }
-}
-
-public string GetRecordColumnType(SchemaExplorer.MemberColumnSchema column) {
-    var typeName = column.SystemType.FullName;
-    try {
-        if (column.AllowDBNull) {
-            return SystemFSharpMap[typeName] + " option";
-        }
-        return SystemFSharpMap[typeName];
-    } catch (Exception ex) {
-        throw new InvalidOperationException("Unable to find record type for " + typeName, ex);
-    }
+    return GetRecordColumnType(column.SystemType.FullName, column.AllowDBNull);
 }
 
 public string GetColumnList(IEnumerable<string> cols) {
@@ -145,12 +127,24 @@ public string GetColumnList(SchemaExplorer.ViewSchema view) {
     return GetColumnList(view.Columns.Select(l => l.Name));
 }
 
+public bool GetIsAnsiStringType(SchemaExplorer.ColumnSchema column) {
+    return (column.NativeType == "varchar" || column.NativeType == "char" || column.NativeType == "text");
+}
+
+public bool GetIsFixedSize(SchemaExplorer.ColumnSchema column) {
+    return (column.NativeType == "char" || column.NativeType == "nchar");
+}
+
+public int GetColumnLength(SchemaExplorer.ColumnSchema column) {
+    return column.Size;
+}
+
 public class NameAndType {
     public string Name { get; set; }
     public string Type { get; set; }
 }
 
-public string GetParameterName(SchemaExplorer.MemberColumnSchema column) {
+public string GetParameterName(SchemaExplorer.ColumnSchema column) {
     return StringUtil.ToCamelCase(GetOutputColumnName(column));
 }
 
@@ -160,12 +154,38 @@ public string GetParameterDeclarations(SchemaExplorer.MemberColumnSchemaCollecti
     }));
 }
 
-public string GetQueryParameterName(SchemaExplorer.MemberColumnSchema column) {
+public string GetQueryParameterName(SchemaExplorer.ColumnSchema column) {
     return GetOutputColumnName(column);
 }
 
-public string GetQueryParameter(SchemaExplorer.MemberColumnSchema column) {
+public string GetSimpleQueryParameter(SchemaExplorer.ColumnSchema column) {
     return "\"" + GetQueryParameterName(column) + "\", box " + GetParameterName(column);
+}
+
+public string GetStringQueryParameter(SchemaExplorer.ColumnSchema column) {
+    return string.Format("\"{0}\", box (dbString {1} {2} {3} {4})", 
+        GetQueryParameterName(column), 
+        GetParameterName(column), 
+        GetIsFixedSize(column).ToString().ToLower(),
+        GetColumnLength(column),
+        GetIsAnsiStringType(column).ToString().ToLower()
+        );
+}
+
+public string GetQueryParameter(SchemaExplorer.ColumnSchema column) {
+    if (column.SystemType.FullName != "System.String") {
+        return GetSimpleQueryParameter(column);
+    } else if (UseAnsiStringsByDefault) {
+        if (GetIsAnsiStringType(column)) {
+            return GetSimpleQueryParameter(column);
+        }
+        return GetStringQueryParameter(column);
+    } else {
+        if (GetIsAnsiStringType(column)) {
+            return GetStringQueryParameter(column);
+        }
+        return GetStringQueryParameter(column);
+    }
 }
 
 public string GetPrimaryKeyWhereCriteria(SchemaExplorer.MemberColumnSchemaCollection columns) {
@@ -259,8 +279,16 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
     
     <% if (UseAnsiStringsByDefault) { %>
     SqlMapper.AddTypeMap(typeof<string>, DbType.AnsiString) |> ignore
-    
+
     <% } %>
+    let private dbString value isFixedLength length isAnsi =
+        let dbs = DbString()
+        dbs.Value <- value
+        dbs.IsFixedLength <- isFixedLength
+        dbs.Length <- length
+        dbs.IsAnsi <- isAnsi
+        dbs
+    
     let private nullToOption a =
         match obj.ReferenceEquals(a, null) with
         | true -> None
@@ -476,9 +504,9 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
         let q = sprintf "SELECT %s FROM <%=tableName %> WHERE %s" <%=columnListName %> "<%=GetPrimaryKeyWhereCriteria(t.PrimaryKey.MemberColumns) %>"
         let p = dict [
             <% foreach (var c in t.PrimaryKey.MemberColumns) { %>
-                            <%=GetQueryParameter(c) %>
+                         <%=GetQueryParameter(c) %>
             <% } %>
-                         ]
+                     ]
         conn |> querySingleOrDefaultWithParams q p
         
     /// <summary>
@@ -492,9 +520,9 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
         let q = sprintf "SELECT %s FROM <%=tableName %> WHERE %s" <%=columnListName %> "<%=GetPrimaryKeyWhereCriteria(t.PrimaryKey.MemberColumns) %>"
         let p = dict [
             <% foreach (var c in t.PrimaryKey.MemberColumns) { %>
-                            <%=GetQueryParameter(c) %>
+                         <%=GetQueryParameter(c) %>
             <% } %>
-                         ]
+                     ]
         conn |> querySingleOrDefaultWithParamsAsync q p
         
         <%
