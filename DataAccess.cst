@@ -766,7 +766,17 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
     let query<%=collectionName %> (criteria : string) (param : obj) (conn : IDbConnection) : <%=sequenceType %> =
         let q = sprintf "SELECT %s FROM <%=tableName %> WHERE %s" <%=columnListName %> criteria
         conn |> queryWithParams q param
-        
+
+    /// <summary>
+    /// Query <see cref="<%=entityName %>". />
+    /// </summary>
+    /// <param name="criteria">The criteria.</param>
+    /// <param name="param">The query parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let query<%=collectionName %>Async (criteria : string) (param : obj) (conn : IDbConnection) : Async<<%=sequenceType %>> =
+        let q = sprintf "SELECT %s FROM <%=tableName %> WHERE %s" <%=columnListName %> criteria
+        conn |> queryWithParamsAsync q param
+
     /// <summary>
     /// Query a single <see cref="<%=entityName %>" />.
     /// </summary>
@@ -783,10 +793,30 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
     /// <param name="criteria">The criteria.</param>
     /// <param name="param">The query parameters.</param>
     /// <param name="conn">The database connection.</param>
+    let querySingle<%=entityName %>Async (criteria : string) (param : obj) (conn : IDbConnection) : Async<<%=entityName %>> =
+        let q = sprintf "SELECT %s FROM <%=tableName %> WHERE %s" <%=columnListName %> criteria
+        conn |> querySingleWithParamsAsync q param
+    
+    /// <summary>
+    /// Query a single <see cref="<%=entityName %>" />.
+    /// </summary>
+    /// <param name="criteria">The criteria.</param>
+    /// <param name="param">The query parameters.</param>
+    /// <param name="conn">The database connection.</param>
     let querySingleOrDefault<%=entityName %> (criteria : string) (param : obj) (conn : IDbConnection) : <%=entityName %> option =
         let q = sprintf "SELECT %s FROM <%=tableName %> WHERE %s" <%=columnListName %> criteria
         conn |> querySingleOrDefaultWithParams q param
 
+    /// <summary>
+    /// Query a single <see cref="<%=entityName %>" />.
+    /// </summary>
+    /// <param name="criteria">The criteria.</param>
+    /// <param name="param">The query parameters.</param>
+    /// <param name="conn">The database connection.</param>
+    let querySingleOrDefault<%=entityName %>Async (criteria : string) (param : obj) (conn : IDbConnection) : Async<<%=entityName %> option> =
+        let q = sprintf "SELECT %s FROM <%=tableName %> WHERE %s" <%=columnListName %> criteria
+        conn |> querySingleOrDefaultWithParamsAsync q param
+        
     <% } %>
 <% } %>
 
