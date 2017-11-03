@@ -5,6 +5,10 @@ Description: This template will generate an F# model for Dapper.
 Version: 1.0.0
 --%>
 <%@ CodeTemplate OutputType="Normal" Language="C#" TargetLanguage="F#" Description="This template will generate an F# model for Dapper." Debug="True" %>
+<%@ Assembly Name="SchemaExplorer" %>
+<%@ Import Namespace="System.Collections.Generic" %>
+<%@ Import Namespace="CodeSmith.Engine" %>
+<%@ Import Namespace="System.Linq" %>
 <%@ Property Name="SourceDatabase" Type="SchemaExplorer.DatabaseSchema" Category="Context" Description="Database that the model should be based on." DeepLoad="True" %>
 <%@ Property Name="SourceTables" Type="SchemaExplorer.TableSchemaCollection" Category="Database" Description="Select a set of tables." Optional="True" %>
 <%@ Property Name="SourceViews" Type="SchemaExplorer.ViewSchemaCollection" Category="Database" Description="Select a set of views." Optional="True" %>
@@ -15,16 +19,26 @@ Version: 1.0.0
 <%@ Property Name="ViewSuffix" Type="System.String" Category="OutputOptions" Description="The suffix added to view entities." Default="ViewEntity" Optional="False" %>
 <%@ Property Name="CommandSuffix" Type="System.String" Category="OutputOptions" Description="The suffix added to command result entities." Default="CommandEntity" Optional="False" %>
 <%@ Property Name="CommandFunctionPrefix" Type="System.String" Category="OutputOptions" Description="The prefix added to stored procedure functions." Default="exec" Optional="False" %>
-<%@ Assembly Name="SchemaExplorer" %>
-<%@ Import Namespace="System.Collections.Generic" %>
-<%@ Import Namespace="CodeSmith.Engine" %>
-<%@ Import Namespace="System.Linq" %>
+<%@ Property Name="TableNameMap" Type="System.String" Category="OutputOptions" Description="Map table names to entity names" Editor="System.Windows.Forms.Design.FileNameEditor, System.Design" %>
 <%@ Map Name="SystemFSharpMap" Src="System-FSharp" Description="SQL to F# Type Map" %>
 <%@ Map Name="SqlDbTypeMap" Src="Sql-DbType" Description="SQL Type to DbType" %>
 
 <script runat="template">
 
+MapCollection tableEntityMap = null;
+
+private void EnsureTableEntityMap() {
+    if (tableEntityMap == null) {
+        tableEntityMap = MapCollection.Load(TableNameMap);
+    }
+}
+
 public string MakeIdentifier(string name) {
+    EnsureTableEntityMap();
+    string mappedName = null;
+    if (tableEntityMap.TryGetValue(name, out mappedName)) {
+        name = mappedName;
+    }
     return System.Text.RegularExpressions.Regex.Replace(name, "[^A-Za-z0-9_]", "_");
 }
 
