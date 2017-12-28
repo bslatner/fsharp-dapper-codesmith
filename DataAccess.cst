@@ -20,13 +20,14 @@ Version: 1.0.0
 <%@ Property Name="CommandSuffix" Type="System.String" Category="OutputOptions" Description="The suffix added to command result entities." Default="CommandEntity" Optional="False" %>
 <%@ Property Name="CommandFunctionPrefix" Type="System.String" Category="OutputOptions" Description="The prefix added to stored procedure functions." Default="exec" Optional="False" %>
 <%@ Property Name="TableNameMap" Type="System.String" Category="OutputOptions" Description="Map table names to entity names" Editor="System.Windows.Forms.Design.FileNameEditor, System.Design" %>
+<%@ Property Name="QuotePrefix" Type="System.String" Category="OutputOptions" Description="Prefix for quoted names in SQL" Default="[" %>
+<%@ Property Name="QuoteSuffix" Type="System.String" Category="OutputOptions" Description="Suffix for quoted names in SQL" Default="]" %>
 <%@ Map Name="SystemFSharpMap" Src="System-FSharp" Description="SQL to F# Type Map" %>
 <%@ Map Name="SqlDbTypeMap" Src="Sql-DbType" Description="SQL Type to DbType" %>
 
 <script runat="template">
 
 MapCollection tableEntityMap = null;
-
 private void EnsureTableEntityMap() {
     if (tableEntityMap == null) {
         tableEntityMap = MapCollection.Load(TableNameMap);
@@ -144,7 +145,7 @@ public string GetColumnList(IEnumerable<string> cols) {
     foreach (var c in cols) {
         var x = GetOutputColumnName(c);
         if (x != c) {
-            lst.Add("[" + c + "] AS " + x);
+            lst.Add(QuotePrefix + c + QuoteSuffix + " AS " + x);
         } else {
             lst.Add(c);
         }
@@ -243,7 +244,7 @@ public string GetQueryParameter(SchemaExplorer.ColumnSchema column) {
 
 public string GetPrimaryKeyWhereCriteria(SchemaExplorer.MemberColumnSchemaCollection columns) {
     return string.Join(" AND ", columns.Select((c) => {
-        return "[" + c.Name + "] = @" + GetQueryParameterName(c);
+        return QuotePrefix + c.Name + QuoteSuffix + " = @" + GetQueryParameterName(c);
     }));
 }
 
@@ -643,7 +644,7 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
         var entityName = GetRecordTypeNameForTable(t); 
         var collectionName = GetCollectionName(entityName);
         var columnListName = GetColumnListName(entityName);
-        var tableName = "[" + t.Name + "]";
+        var tableName = QuotePrefix + t.Name + QuoteSuffix;
         var sequenceType = "seq<" + entityName + ">";
     %>
     
@@ -840,7 +841,7 @@ module Query<% if (!string.IsNullOrWhiteSpace(Namespace)) { %> =<% } %>
         var entityName = GetRecordTypeNameForView(v); 
         var collectionName = GetCollectionName(entityName);
         var columnListName = GetColumnListName(entityName);
-        var viewName = "[" + v.Name + "]";
+        var viewName = QuotePrefix + v.Name + QuoteSuffix;
         var sequenceType = "seq<" + entityName + ">";
     %>
     
