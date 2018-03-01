@@ -41,16 +41,24 @@ private void EnsureTableEntityMap() {
 }
 
 public string MakeIdentifier(string name) {
-    EnsureTableEntityMap();
-    string mappedName = null;
-    if (tableEntityMap.TryGetValue(name, out mappedName)) {
-        name = mappedName;
-    }
     return System.Text.RegularExpressions.Regex.Replace(name, "[^A-Za-z0-9_]", "_");
 }
 
+public string MakeTableIdentifier(string name) {
+    EnsureTableEntityMap();
+    string mappedName;
+    if (tableEntityMap.TryGetValue(name, out mappedName)) {
+        name = mappedName;
+    }
+    return MakeIdentifier(name);
+}
+
+public string MakeViewIdentifier(string name) {
+    return MakeTableIdentifier(name);
+}
+
 public string GetOutputTableName(SchemaExplorer.TableSchema table) {
-    var name = MakeIdentifier(table.Name);
+    var name = MakeTableIdentifier(table.Name);
     while (name.StartsWith("_")) {
         name = name.Substring(1);
     }
@@ -65,7 +73,7 @@ public string GetRecordTypeNameForTable(SchemaExplorer.TableSchema table) {
 }
 
 public string GetOutputViewName(SchemaExplorer.ViewSchema view) {
-    var name = MakeIdentifier(view.Name);
+    var name = MakeViewIdentifier(view.Name);
     while (name.StartsWith("_")) {
         name = name.Substring(1);
     }
