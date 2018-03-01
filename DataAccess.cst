@@ -19,7 +19,7 @@ Version: 1.0.0
 <%@ Property Name="ViewSuffix" Type="System.String" Category="OutputOptions" Description="The suffix added to view entities." Default="ViewEntity" Optional="False" %>
 <%@ Property Name="CommandSuffix" Type="System.String" Category="OutputOptions" Description="The suffix added to command result entities." Default="CommandEntity" Optional="False" %>
 <%@ Property Name="CommandFunctionPrefix" Type="System.String" Category="OutputOptions" Description="The prefix added to stored procedure functions." Default="exec" Optional="False" %>
-<%@ Property Name="TableNameMap" Type="System.String" Category="OutputOptions" Description="Map table names to entity names" Editor="System.Windows.Forms.Design.FileNameEditor, System.Design" %>
+<%@ Property Name="TableNameMap" Type="System.String" Category="OutputOptions" Description="Map table names to entity names" Editor="System.Windows.Forms.Design.FileNameEditor, System.Design"Optional="True" %>
 <%@ Property Name="QuotePrefix" Type="System.String" Category="OutputOptions" Description="Prefix for quoted names in SQL" Default="[" %>
 <%@ Property Name="QuoteSuffix" Type="System.String" Category="OutputOptions" Description="Suffix for quoted names in SQL" Default="]" %>
 <%@ Map Name="SystemFSharpMap" Src="System-FSharp" Description="SQL to F# Type Map" %>
@@ -30,7 +30,13 @@ Version: 1.0.0
 MapCollection tableEntityMap = null;
 private void EnsureTableEntityMap() {
     if (tableEntityMap == null) {
-        tableEntityMap = MapCollection.Load(TableNameMap);
+        if (!string.IsNullOrEmpty(TableNameMap)) {
+            tableEntityMap = MapCollection.Load(TableNameMap);
+        }
+        else {
+            tableEntityMap = new MapCollection();
+        }
+        
     }
 }
 
